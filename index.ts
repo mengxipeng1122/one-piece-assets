@@ -1,13 +1,19 @@
 
 
 import {
-    findFuns,
-    ghidraOffset2Address,
-} from './myfrida/tsmodules/commutils'
+    frida_symtab,
+} from './myfrida/tsmodules/fridautils'
+
 
 import {
+    getModuleBuildID,
+    getModuleNDKVersion,
+} from './myfrida/tsmodules/NDKUtils'
 
-} from './myfrida/tsmodules/HookAction'
+import {
+    INFO_TYPE,                                                                                                                               
+    mod as libpatchunityinfo,
+} from './modinfos/libpatchgame'
 
 import {
     HookFunAction,
@@ -16,6 +22,134 @@ import {
 } from './myfrida/tsmodules/HookFunAction'
 
 const soname = 'libgame.so';
+
+const addressToGhidraOffset = (pointer: NativePointer, moduleName?: string, moduleInfos: MODINFOS_TYPE = {}) => {
+    let ghidraBase = getDefaultGhidraBase();
+    if (moduleInfos && moduleName && moduleInfos[moduleName]) {
+        const info = moduleInfos[moduleName];
+        if(info.ghidraBase){ ghidraBase = info.ghidraBase; }
+    } else {
+        console.warn(`Using default Ghidra offset ${ghidraBase} for ${moduleName}`);
+    }
+
+    let module: Module | null = moduleName ? Process.findModuleByName(moduleName) : Process.findModuleByAddress(pointer);
+
+    if (module) {
+        return pointer.sub(module.base).add(ghidraBase);
+    } else {
+        throw new Error(`Cannot find a module named ${moduleName}`);
+    }
+}
+
+const runFunWithExceptHandling = (f: () => void, modInfos: MODINFOS_TYPE = {}, spCount: number = 50, cb: (pe: Error) => void = (pe) => {}): void => {
+
+    const inspectPointer = (p: NativePointer): string => {
+        const module = Process.findModuleByAddress(p);
+        if (module) {
+            const moduleName = module.name;
+            if (moduleName in modInfos) {
+                const gp = addressToGhidraOffset(p, moduleName, modInfos);
+                const offset = p.sub(module.base);
+                return `${p} ${moduleName} @ ${offset} # ${gp}`;
+            }
+            return `${p} ${moduleName} @ ${p.sub(module.base)}`;
+        } else {
+            const m = Process.findModuleByAddress(p);
+            if (m && modInfos) {
+                const gp = addressToGhidraOffset(p, m.name, modInfos);
+                const offset = p.sub(m.base);
+                return `${p} ${m.name} @ ${offset} # ${gp}`;
+            }
+            const range = Process.findRangeByAddress(p);
+            return `${p} ${module}, ${range}`;
+        }
+    }
+
+    const handleExceptionContext = (e: Error): void => {
+        if ((e as any).context !== undefined) {
+            const context = (e as any).context;
+            console.log('called from:\n' +
+                Thread.backtrace(context, Backtracer.ACCURATE)
+                    .map(DebugSymbol.fromAddress).join('\n') + '\n');
+            const pc = context.pc;
+            console.log('pc', pc, inspectPointer(pc));
+            const sp = context.sp;
+            console.log('sp', sp);
+            dumpMemory(sp, Process.pointerSize * spCount);
+            for (let t = 0; t < spCount; t++) {
+                const p = sp.add(t * Process.pointerSize).readPointer();
+                console.log(t, inspectPointer(p));
+            }
+        }
+    }
+
+    try {
+        f();
+    } catch (_e) {
+        const e: Error = _e as Error;
+        handleExceptionContext(e);
+        if (cb !== undefined) cb(e);
+    }
+}
+
+const getAndroidAppInfo = ()=>{
+    const ActivityThread = Java.use('android.app.ActivityThread');
+    var currentApplication = ActivityThread.currentApplication();
+    var context = currentApplication.getApplicationContext();
+
+    
+    return {
+        applicationName                      : context.getPackageName().toString(),
+        packageCodePath                      : context.getPackageCodePath                 (),
+        packageResourcePath                  : context.getPackageResourcePath             (),
+        cacheDir                             : context.getCacheDir                        ()?.getAbsolutePath().toString(),
+        codeCacheDir                         : context.getCodeCacheDir                    ()?.getAbsolutePath().toString(),
+        dataDir                              : context.getDataDir                         ()?.getAbsolutePath().toString(),
+        externalCacheDir                     : context.getExternalCacheDir                ()?.getAbsolutePath().toString(),
+        externalFilesDir                     : context.getExternalFilesDir            (null)?.getAbsolutePath().toString(),
+        filesDir                             : context.getFilesDir                        ()?.getAbsolutePath().toString(),
+        noBackupFilesDir                     : context.getNoBackupFilesDir                ()?.getAbsolutePath().toString(),
+        obbDir                               : context.getObbDir                          ()?.getAbsolutePath().toString(),
+    };
+}
+
+type MODINFOS_TYPE = {
+    [key: string]:  // modulename 
+    {
+        ghidraBase?: NativePointer, // ghidra base
+
+        buildId: string, // buildId of the module
+
+        symbols: {
+
+            [key: string]: {
+                ghidraOffset: NativePointer,
+            },
+        }
+    }
+};
+
+const getDefaultGhidraBase = ():NativePointer =>{
+    if(Process.arch=='arm'  ){ return ptr(0x10000);     }
+    if(Process.arch=='arm64'){ return ptr(0x100000);    }
+    if(Process.arch=='ia32' ){ return ptr(0x400000);    }
+    throw new Error(`unsupported arch ${Process.arch}`);
+}
+const ghidraOffset2Address = (soname:string,p:NativePointer, modinfos?:MODINFOS_TYPE) =>{
+    let ghidraBase = getDefaultGhidraBase();
+    if(undefined != modinfos){
+        if(soname in modinfos) {
+            let info = modinfos[soname]
+            if(info.ghidraBase){ ghidraBase = info.ghidraBase; }
+        }
+    }
+    let m = Process.findModuleByName(soname);
+    if(m!=null){
+        return p.add(m.base).sub(ghidraBase);
+    }
+    throw new Error(`can not found module info for ${soname}`)
+}
+
 
 const dumpMemory = (p: NativePointer, l: number = 0x20): void => {
     console.log(
@@ -175,7 +309,9 @@ const hookNativeApp = () => {
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool13getNetyByNameEPKcPPNS0_3GNP10NtyManagerE"), name:"bisqueBase::util::GlobalNtyPool::getNetyByName(char const*, bisqueBase::util::GNP::NtyManager**)", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool14getLastPatchIdEPKcPy"), name:"bisqueBase::util::GlobalNtyPool::getLastPatchId(char const*, unsigned long long*)", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool18purgeLocalCacheAllEPNS0_3GNP30GNPAsyncOperationEventListenerEj"), name:"bisqueBase::util::GlobalNtyPool::purgeLocalCacheAll(bisqueBase::util::GNP::GNPAsyncOperationEventListener*, unsigned int)", opts:{}, },
+
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool24createLocalCacheFromListEPPKcj"), name:"bisqueBase::util::GlobalNtyPool::createLocalCacheFromList(char const**, unsigned int)", opts:{}, },
+
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool19addPatchNTYInternalEPKcS3_yj"), name:"bisqueBase::util::GlobalNtyPool::addPatchNTYInternal(char const*, char const*, unsigned long long, unsigned int)", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool21invalidateMemoryCacheEPKNS0_3GNP10NtyManagerE"), name:"bisqueBase::util::GlobalNtyPool::invalidateMemoryCache(bisqueBase::util::GNP::NtyManager const*)", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool14isContainsNameEPKc"), name:"bisqueBase::util::GlobalNtyPool::isContainsName(char const*)", opts:{}, },
@@ -203,13 +339,33 @@ const hookNativeApp = () => {
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool19findCacheDescriptorERKNS0_3GNP6NtyAPUEPPNS2_18NtyCacheDescriptorE"), name:"bisqueBase::util::GlobalNtyPool::findCacheDescriptor(bisqueBase::util::GNP::NtyAPU const&, bisqueBase::util::GNP::NtyCacheDescriptor**)", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16findVolumeByNameERKNS0_3GNP6NtyAPUEPPNS2_10NtyManagerEPj"), name:"bisqueBase::util::GlobalNtyPool::findVolumeByName(bisqueBase::util::GNP::NtyAPU const&, bisqueBase::util::GNP::NtyManager**, unsigned int*)", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool13getVolumeInfoEPKcPPNS0_3GNP10NtyManagerE"), name:"bisqueBase::util::GlobalNtyPool::getVolumeInfo(char const*, bisqueBase::util::GNP::NtyManager**)", opts:{}, },
-{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16createLocalCacheEPKc"), name:"bisqueBase::util::GlobalNtyPool::createLocalCache(char const*)", opts:{}, },
+
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16createLocalCacheEPKc"), name:"bisqueBase::util::GlobalNtyPool::createLocalCache(char const*)", opts:{
+    enterFun(args, tstr, thiz) {
+        console.log(tstr, args[0].readUtf8String());
+        //dumpMemory(args[0])
+    },
+}, },
+
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool12removeVolumeEPKc"), name:"bisqueBase::util::GlobalNtyPool::removeVolume(char const*)", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool6removeEPKc"), name:"bisqueBase::util::GlobalNtyPool::remove(char const*)", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool14addAttachQueueEPNS0_3GNP18NTYPOOL_SPOOL_ITEME"), name:"bisqueBase::util::GlobalNtyPool::addAttachQueue(bisqueBase::util::GNP::NTYPOOL_SPOOL_ITEM*)", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool18getVolumeInfoByAPUERKNS0_3GNP6NtyAPUEPPNS2_10NtyManagerE"), name:"bisqueBase::util::GlobalNtyPool::getVolumeInfoByAPU(bisqueBase::util::GNP::NtyAPU const&, bisqueBase::util::GNP::NtyManager**)", opts:{}, },
-{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool6attachEPKcPKNS_4Data5BQ1599BisqueKeyENS0_3GNP17ATTACH_NTY_METHODE"), name:"bisqueBase::util::GlobalNtyPool::attach(char const*, bisqueBase::Data::BQ159::BisqueKey const*, bisqueBase::util::GNP::ATTACH_NTY_METHOD)", opts:{}, },
-{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16createLocalCacheEPKcPNS0_3GNP10NtyPoolFSOE"), name:"bisqueBase::util::GlobalNtyPool::createLocalCache(char const*, bisqueBase::util::GNP::NtyPoolFSO*)", opts:{}, },
+
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool6attachEPKcPKNS_4Data5BQ1599BisqueKeyENS0_3GNP17ATTACH_NTY_METHODE"), name:"bisqueBase::util::GlobalNtyPool::attach(char const*, bisqueBase::Data::BQ159::BisqueKey const*, bisqueBase::util::GNP::ATTACH_NTY_METHOD)", opts:{
+    enterFun(args, tstr, thiz) {
+        console.log(tstr, args[0].readUtf8String())
+    },
+}, },
+
+
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16createLocalCacheEPKcPNS0_3GNP10NtyPoolFSOE"), name:"bisqueBase::util::GlobalNtyPool::createLocalCache(char const*, bisqueBase::util::GNP::NtyPoolFSO*)", opts:{
+    enterFun(args, tstr, thiz) {
+        console.log(tstr, args[0].readUtf8String());
+        //dumpMemory(args[0])
+    },
+}, },
+
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16getGlobalContextEv"), name:"bisqueBase::util::GlobalNtyPool::getGlobalContext()", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPoolD0Ev"), name:"bisqueBase::util::GlobalNtyPool::~GlobalNtyPool()", opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool10isAttachedEPKc"), name:"bisqueBase::util::GlobalNtyPool::isAttached(char const*)", opts:{}, },
@@ -258,7 +414,13 @@ const hookNativeApp = () => {
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool15asyncAttachProcEPv") , name: "bisqueBase::util::GlobalNtyPool::asyncAttachProc(void*)" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool25waitForBackgroudOperationEv") , name: "bisqueBase::util::GlobalNtyPool::waitForBackgroudOperation()" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool5clearEv") , name: "bisqueBase::util::GlobalNtyPool::clear()" , opts:{}, },
-{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool12attachVolumeEPKcPKNS_4Data5BQ1599BisqueKeyE") , name: "bisqueBase::util::GlobalNtyPool::attachVolume(char const*, bisqueBase::Data::BQ159::BisqueKey const*)" , opts:{}, },
+
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool12attachVolumeEPKcPKNS_4Data5BQ1599BisqueKeyE") , name: "bisqueBase::util::GlobalNtyPool::attachVolume(char const*, bisqueBase::Data::BQ159::BisqueKey const*)" , opts:{
+    enterFun(args, tstr, thiz) {
+        console.log(tstr, 'enter attachVolume', args[1].readUtf8String());
+    },
+}, },
+
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool11addPatchNTYEPKcS3_yj") , name: "bisqueBase::util::GlobalNtyPool::addPatchNTY(char const*, char const*, unsigned long long, unsigned int)" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool15purgeLocalCacheEPKcj") , name: "bisqueBase::util::GlobalNtyPool::purgeLocalCache(char const*, unsigned int)" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool18processAttachQueueEPKNS1_15GNPArtilleryJobE") , name: "bisqueBase::util::GlobalNtyPool::processAttachQueue(bisqueBase::util::GlobalNtyPool::GNPArtilleryJob const*)" , opts:{}, },
@@ -273,18 +435,32 @@ const hookNativeApp = () => {
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool15getStreamByNameEPKcPPNS_2IO6StreamENS0_3GNP17GET_STREAM_METHODE") , name: "bisqueBase::util::GlobalNtyPool::getStreamByName(char const*, bisqueBase::IO::Stream**, bisqueBase::util::GNP::GET_STREAM_METHOD)" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool18lookupReadablePathEPKcPNS0_3GNP6NtyAPUE") , name: "bisqueBase::util::GlobalNtyPool::lookupReadablePath(char const*, bisqueBase::util::GNP::NtyAPU*)" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool19createCacheFromListEPPKcj") , name: "bisqueBase::util::GlobalNtyPool::createCacheFromList(char const**, unsigned int)" , opts:{}, },
-{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPoolC2Ev") , name: "bisqueBase::util::GlobalNtyPool::GlobalNtyPool()" , opts:{}, },
+// {p:Module.getExportByName(soname, "_ZN10bisfindVolumeByNamequeBase4util13GlobalNtyPoolC2Ev") , name: "bisqueBase::util::GlobalNtyPool::GlobalNtyPool()" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool15findCacheByNameERKNS0_3GNP6NtyAPUEPPNS2_18NtyCacheDescriptorEPPKc") , name: "bisqueBase::util::GlobalNtyPool::findCacheByName(bisqueBase::util::GNP::NtyAPU const&, bisqueBase::util::GNP::NtyCacheDescriptor**, char const**)" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool19findCacheDescriptorERKNS0_3GNP6NtyAPUEPPNS2_18NtyCacheDescriptorE") , name: "bisqueBase::util::GlobalNtyPool::findCacheDescriptor(bisqueBase::util::GNP::NtyAPU const&, bisqueBase::util::GNP::NtyCacheDescriptor**)" , opts:{}, },
-{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16findVolumeByNameERKNS0_3GNP6NtyAPUEPPNS2_10NtyManagerEPj") , name: "bisqueBase::util::GlobalNtyPool::findVolumeByName(bisqueBase::util::GNP::NtyAPU const&, bisqueBase::util::GNP::NtyManager**, unsigned int*)" , opts:{}, },
+
+//{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16findVolumeByNameERKNS0_3GNP6NtyAPUEPPNS2_10NtyManagerEPj") , name: "bisqueBase::util::GlobalNtyPool::findVolumeByName(bisqueBase::util::GNP::NtyAPU const&, bisqueBase::util::GNP::NtyManager**, unsigned int*)" , opts:{}, },
+
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool13getVolumeInfoEPKcPPNS0_3GNP10NtyManagerE") , name: "bisqueBase::util::GlobalNtyPool::getVolumeInfo(char const*, bisqueBase::util::GNP::NtyManager**)" , opts:{}, },
-{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16createLocalCacheEPKc") , name: "bisqueBase::util::GlobalNtyPool::createLocalCache(char const*)" , opts:{}, },
+
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16createLocalCacheEPKc") , name: "bisqueBase::util::GlobalNtyPool::createLocalCache(char const*)" , opts:{
+    enterFun(args, tstr, thiz) {
+        console.log(args[0].readUtf8String())
+    },
+}, },
+
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool12removeVolumeEPKc") , name: "bisqueBase::util::GlobalNtyPool::removeVolume(char const*)" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool6removeEPKc") , name: "bisqueBase::util::GlobalNtyPool::remove(char const*)" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool14addAttachQueueEPNS0_3GNP18NTYPOOL_SPOOL_ITEME") , name: "bisqueBase::util::GlobalNtyPool::addAttachQueue(bisqueBase::util::GNP::NTYPOOL_SPOOL_ITEM*)" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool18getVolumeInfoByAPUERKNS0_3GNP6NtyAPUEPPNS2_10NtyManagerE") , name: "bisqueBase::util::GlobalNtyPool::getVolumeInfoByAPU(bisqueBase::util::GNP::NtyAPU const&, bisqueBase::util::GNP::NtyManager**)" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool6attachEPKcPKNS_4Data5BQ1599BisqueKeyENS0_3GNP17ATTACH_NTY_METHODE") , name: "bisqueBase::util::GlobalNtyPool::attach(char const*, bisqueBase::Data::BQ159::BisqueKey const*, bisqueBase::util::GNP::ATTACH_NTY_METHOD)" , opts:{}, },
-{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16createLocalCacheEPKcPNS0_3GNP10NtyPoolFSOE") , name: "bisqueBase::util::GlobalNtyPool::createLocalCache(char const*, bisqueBase::util::GNP::NtyPoolFSO*)" , opts:{}, },
+
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16createLocalCacheEPKcPNS0_3GNP10NtyPoolFSOE") , name: "bisqueBase::util::GlobalNtyPool::createLocalCache(char const*, bisqueBase::util::GNP::NtyPoolFSO*)" , opts:{
+    enterFun(args, tstr, thiz) {
+        console.log(args[0].readUtf8String())
+    },
+}, },
+
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool16getGlobalContextEv") , name: "bisqueBase::util::GlobalNtyPool::getGlobalContext()" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPoolD0Ev") , name: "bisqueBase::util::GlobalNtyPool::~GlobalNtyPool()" , opts:{}, },
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13GlobalNtyPool10isAttachedEPKc") , name: "bisqueBase::util::GlobalNtyPool::isAttached(char const*)" , opts:{}, },
@@ -353,9 +529,9 @@ const hookNativeApp = () => {
     [
 
         // ...hooksForAAssetManager,
-        ...hooksForBisqueBaseUtilBQFileDecoder,
-        ...hooksForBQ_io,
-        ...hooksForLogging,
+        // ...hooksForBisqueBaseUtilBQFileDecoder,
+        // ...hooksForBQ_io,
+        // ...hooksForLogging,
         // ...hooksForBQ_android_io,
         // ...hooksForBisqueBaseIoImplBQFileStream_Android,
         // ...hooksForBisqueBaseGlobalNtyPool,
@@ -378,6 +554,54 @@ const patchApp = ()=>{
 const testApp = ()=>{
     const fun = new NativeFunction(Module.getExportByName(soname, "BQ_independence_get_log_level"), 'int',[]);
     console.log('log level', fun())
+
+    console.log('NDK version',getModuleNDKVersion(soname))
+}
+
+
+let patchLib : INFO_TYPE | null = null;
+
+const loadPatchlib = ()=>{
+    if (patchLib == null) {
+
+        patchLib = libpatchunityinfo.load(
+            `/data/local/tmp//libpatchgame.so`,
+            [
+                soname,
+            ],
+            {
+                ...frida_symtab,
+            },
+        );
+        // console.log(JSON.stringify(lib))
+        const runInit = () => {
+            if(0){
+                if (patchLib) {
+                    const fun = new NativeFunction(patchLib.symbols.init, 'int', ['pointer', 'pointer']);
+                    const m = Process.getModuleByName(soname);
+                    const appinfo = getAndroidAppInfo();
+                    const pdatadir = Memory.allocUtf8String(appinfo.dataDir);
+                    const ret = fun(m.base, pdatadir)
+                }
+            }
+        }
+        if (1) {
+            try{
+                runInit();
+            }
+            catch(e){
+                console.log(e)
+                let context = (e as any).context;
+                console.log('context', context, JSON.stringify(context))
+                const pc  = context.pc; console.log('pc', pc, addressToGhidraOffset(pc))
+                const lr  = context.lr; console.log('lr', lr, addressToGhidraOffset(lr))
+            }
+        }
+        else {
+            runInit();
+        }
+
+    }
 }
 
 const test = ()=>{
@@ -386,6 +610,8 @@ const test = ()=>{
         patchApp();
         //findFuns("AAssetManager_open");
         hookNativeApp();
+
+        loadPatchlib();
 
         testApp();
 

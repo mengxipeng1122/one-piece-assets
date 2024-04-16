@@ -1,10 +1,10 @@
 
 
-PATCH_SONAME:=libpatchunity
+PATCH_SONAME:=libpatchgame
 
 SO2TS_PY=./myfrida/utils/so2ts.py
 
-all:  # build_c convert_so
+all:  build_c convert_so
 	./node_modules/.bin/frida-compile index.ts -o _agent.js -c 
 
 build_c:
