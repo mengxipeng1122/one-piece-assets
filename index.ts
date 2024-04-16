@@ -165,7 +165,72 @@ const dumpMemory = (p: NativePointer, l: number = 0x20): void => {
 
 const hookNativeApp = () => {
 
+    const hooksForBisqueBaseDataNtyReader : {p:NativePointer, name?:string, opts:HookFunActionOptArgs}[] = [
+
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader8QSIIndexD2Ev"), name:"bisqueBase::Data::NtyReader::QSIIndex::~QSIIndex()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS8validateEv"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::validate()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyInnnerFDS5writeEPKvmm"), name:"bisqueBase::Data::NtyReader::NtyInnnerFDS::write(void const*, unsigned long, unsigned long)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS10unsafeReadEPvmm"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::unsafeRead(void*, unsigned long, unsigned long)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReaderC2Ev"), name:"bisqueBase::Data::NtyReader::NtyReader()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS11getPositionEv"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::getPosition()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader7readNddEj"), name:"bisqueBase::Data::NtyReader::readNdd(unsigned int)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader5closeEv"), name:"bisqueBase::Data::NtyReader::close()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyInnnerFDS11getPositionEv"), name:"bisqueBase::Data::NtyReader::NtyInnnerFDS::getPosition()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader21createNettyBurstIndexEPPNS_4util14VariableBufferE"), name:"bisqueBase::Data::NtyReader::createNettyBurstIndex(bisqueBase::util::VariableBuffer**)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader7disposeEv"), name:"bisqueBase::Data::NtyReader::dispose()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyInnnerFDS5closeEv"), name:"bisqueBase::Data::NtyReader::NtyInnnerFDS::close()", opts:{}, },
+// {p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyInnnerFDSD0Ev"), name:"bisqueBase::Data::NtyReader::NtyInnnerFDS::~NtyInnnerFDS()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader11SegmentInfoD0Ev"), name:"bisqueBase::Data::NtyReader::SegmentInfo::~SegmentInfo()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12readMetaDataEv"), name:"bisqueBase::Data::NtyReader::readMetaData()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader19loadNettyBurstIndexEPKNS1_21tagNTY_BURST_INDEX_INE"), name:"bisqueBase::Data::NtyReader::loadNettyBurstIndex(bisqueBase::Data::NtyReader::tagNTY_BURST_INDEX_IN const*)", opts:{}, },
+// {p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReaderD0Ev"), name:"bisqueBase::Data::NtyReader::~NtyReader()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS9getLengthEv"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::getLength()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader11SegmentInfoD2Ev"), name:"bisqueBase::Data::NtyReader::SegmentInfo::~SegmentInfo()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader11SegmentInfo12createBinaryEPPNS_4util14VariableBufferE"), name:"bisqueBase::Data::NtyReader::SegmentInfo::createBinary(bisqueBase::util::VariableBuffer**)", opts:{}, },
+// {p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReaderD1Ev"), name:"bisqueBase::Data::NtyReader::~NtyReader()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS17_BQCOM_FN_ReleaseEv"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::_BQCOM_FN_Release()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader18checkNtyFileHeaderEPKc"), name:"bisqueBase::Data::NtyReader::checkNtyFileHeader(char const*)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReaderD2Ev"), name:"bisqueBase::Data::NtyReader::~NtyReader()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS16_BQCOM_FN_AddRefEv"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::_BQCOM_FN_AddRef()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS4seekExNS_2IO14tagSEEK_ORIGINE"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::seek(long long, bisqueBase::IO::tagSEEK_ORIGIN)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader5flushEv"), name:"bisqueBase::Data::NtyReader::flush()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS5closeEv"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::close()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDSD0Ev"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::~NtyObservFDS()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS5writeEPKvmm"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::write(void const*, unsigned long, unsigned long)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS16_BQCOM_FN_GetRefEv"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::_BQCOM_FN_GetRef()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDSD2Ev"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::~NtyObservFDS()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader18findSegmentByTitleEPKcPjNS1_18SEARCH_TEXT_METHODE"), name:"bisqueBase::Data::NtyReader::findSegmentByTitle(char const*, unsigned int*, bisqueBase::Data::NtyReader::SEARCH_TEXT_METHOD)", opts:{
+    showCallStack:true,
+    enterFun(args, tstr, thiz) {
+        console.log(tstr, args[1].readUtf8String())
+    },
+}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS10unsafeSeekExNS_2IO14tagSEEK_ORIGINE"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::unsafeSeek(long long, bisqueBase::IO::tagSEEK_ORIGIN)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyInnnerFDS4seekExNS_2IO14tagSEEK_ORIGINE"), name:"bisqueBase::Data::NtyReader::NtyInnnerFDS::seek(long long, bisqueBase::IO::tagSEEK_ORIGIN)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyInnnerFDS4readEPvmm"), name:"bisqueBase::Data::NtyReader::NtyInnnerFDS::read(void*, unsigned long, unsigned long)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyInnnerFDS8validateEv"), name:"bisqueBase::Data::NtyReader::NtyInnnerFDS::validate()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader21closeSharedDescriptorEv"), name:"bisqueBase::Data::NtyReader::closeSharedDescriptor()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyInnnerFDS9getLengthEv"), name:"bisqueBase::Data::NtyReader::NtyInnnerFDS::getLength()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader10openStreamEPNS_2IO6StreamEPKNS1_21tagNTY_BURST_INDEX_INE"), name:"bisqueBase::Data::NtyReader::openStream(bisqueBase::IO::Stream*, bisqueBase::Data::NtyReader::tagNTY_BURST_INDEX_IN const*)", opts:{
+}, },
+
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader4openEPKcPKNS1_21tagNTY_BURST_INDEX_INE"), name:"bisqueBase::Data::NtyReader::open(char const*, bisqueBase::Data::NtyReader::tagNTY_BURST_INDEX_IN const*)", opts:{
+    enterFun(args, tstr, thiz) {
+        console.log(tstr, args[1].readUtf8String());
+    },
+}, },
+
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader12NtyObservFDS4readEPvmm"), name:"bisqueBase::Data::NtyReader::NtyObservFDS::read(void*, unsigned long, unsigned long)", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader9getStreamEPPNS_2IO6StreamEjj"), name:"bisqueBase::Data::NtyReader::getStream(bisqueBase::IO::Stream**, unsigned int, unsigned int)", opts:{}, },
+// {p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader8QSIIndexD0Ev"), name:"bisqueBase::Data::NtyReader::QSIIndex::~QSIIndex()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader20openSharedDescriptorEv"), name:"bisqueBase::Data::NtyReader::openSharedDescriptor()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader4initEv"), name:"bisqueBase::Data::NtyReader::init()", opts:{}, },
+{p:Module.getExportByName(soname, "_ZN10bisqueBase4Data9NtyReader11SegmentInfoC2Ev"), name:"bisqueBase::Data::NtyReader::SegmentInfo::SegmentInfo()", opts:{}, },
+
+    ];
+
     const hooksForBisqueBaseUtilBQFileDecoder : {p:NativePointer, name?:string, opts:HookFunActionOptArgs}[] = [
+
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13BQFileDecoder15extractToMemoryEPNS_4Data5BQ1599BisqueKeyEPKcPNS0_14VariableBufferEj"),name:"bisqueBase::util::BQFileDecoder::extractToMemory(bisqueBase::Data::BQ159::BisqueKey*, char const*, bisqueBase::util::VariableBuffer*, unsigned int)", opts:{}, },
 
 {p:Module.getExportByName(soname, "_ZN10bisqueBase4util13BQFileDecoder15extractToStreamEPNS_4Data5BQ1599BisqueKeyEPNS2_9NtyReaderEPNS_2IO6StreamEj"),name:"bisqueBase::util::BQFileDecoder::extractToStream(bisqueBase::Data::BQ159::BisqueKey*, bisqueBase::Data::NtyReader*, bisqueBase::IO::Stream*, unsigned int)", opts:{
@@ -537,6 +602,7 @@ const hookNativeApp = () => {
         // ...hooksForBisqueBaseGlobalNtyPool,
         // ...hooksForBisqueBaseBQStorage,
         // ...hooksForFileRead,
+        ... hooksForBisqueBaseDataNtyReader,
     ].forEach((h : {p:NativePointer, name?:string, opts?:{[key:string]:any}})=>{
         console.log('hooking', JSON.stringify(h))
         let {p, name, opts} = h;
@@ -571,11 +637,12 @@ const loadPatchlib = ()=>{
             ],
             {
                 ...frida_symtab,
+                _ZN10bisqueBase4Data9NtyReaderC1Ev : Module.getExportByName(soname,'_ZN10bisqueBase4Data9NtyReaderC2Ev'),
             },
         );
         // console.log(JSON.stringify(lib))
         const runInit = () => {
-            if(0){
+            if(1){
                 if (patchLib) {
                     const fun = new NativeFunction(patchLib.symbols.init, 'int', ['pointer', 'pointer']);
                     const m = Process.getModuleByName(soname);

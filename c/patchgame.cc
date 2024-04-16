@@ -16,6 +16,22 @@
 
 
 namespace bisqueBase {
+    namespace util{
+        template<typename T>
+        struct rectilinear_ref {
+            struct Record {
+                void* vtab;
+                T item;
+                Record* next;
+            };
+            Record* _head;
+            Record* _tail;
+            int n;
+
+            void dump() {
+            }
+        };
+    }
     namespace IO{
         struct Stream{
 
@@ -28,7 +44,19 @@ namespace bisqueBase {
             };
         }
         struct NtyReader{
+            struct SegmentInfo {
+
+            };
+            unsigned char _0x0[0x4a0];
+            bisqueBase::util::rectilinear_ref<SegmentInfo*> segmentInfos;
+            unsigned char _0x4b8[0x40];
+            NtyReader();
+            enum tagNTY_BURST_INDEX_IN{
+                
+            };
             int getStream(IO::Stream**, unsigned int, unsigned int);
+            bool open(char const*, tagNTY_BURST_INDEX_IN const*);
+
         };
     }
     namespace util{
@@ -74,7 +102,8 @@ namespace bisqueBase {
             };
             struct NtyManager{
                 void* vtab;
-                unsigned char _0x8[0x10];
+                bisqueBase::Data::NtyReader* _reader;
+                unsigned char _0x10[0x8];
                 unsigned char useCache;
                 unsigned char _0x19[0x3];
                 unsigned char _0x1c[0x14];
@@ -88,16 +117,70 @@ namespace bisqueBase {
             };
         };
         struct GlobalNtyPool{
-            static GlobalNtyPool* getGlobalContext();
-            static GlobalNtyPool* instance();
-            int findVolumeByName(GNP::NtyAPU const&, GNP::NtyManager**, unsigned int*); // x8
             unsigned char _0x0[0x28];
             GNP::NtyCacheManager* _cacheManager;
             GNP::NtyCacheManager* getCacheManager();
+            static GlobalNtyPool* getGlobalContext();
+            static GlobalNtyPool* instance();
+            int findVolumeByName(GNP::NtyAPU const&, GNP::NtyManager**, unsigned int*); // x8
             int getAttachQueueCount();
         };
     };
 };
+
+
+int testNtyReader(unsigned char* base, const char* datadir) {
+
+    if (0) {
+
+        const char *fn = "/data/user/0/com.namcobandaigames.spmoja010E/files/Cache/RES_LOADING.DAT";
+        bisqueBase::Data::NtyReader reader;
+        auto success = reader.open(fn, nullptr);
+
+        LOG_INFOS("success %d", success);
+    }
+
+    if(1) {
+        auto* globalNtyPool = bisqueBase::util::GlobalNtyPool::instance();
+        LOG_INFOS("globalNtyPool %p", globalNtyPool);
+        auto* cacheManager = globalNtyPool->getCacheManager();
+        LOG_INFOS("cacheManager %p ", cacheManager);
+        auto* p =  (unsigned char *)globalNtyPool;
+        p = *(unsigned char**)(p + 0x10);
+        { auto& info =  getTypeInfoOfInstance_ndk(p); LOG_INFOS("%s", info.name()); }
+        p = *(unsigned char**)(p + 0x18);
+        //{ auto& info =  getTypeInfoOfInstance_ndk(p); LOG_INFOS("%s", info.name()); }
+        p = *(unsigned char**)(p + 0x0);
+        { auto& info =  getTypeInfoOfInstance_ndk(p); LOG_INFOS("%s", info.name()); }
+        p = *(unsigned char**)(p + 0x8);
+        { auto& info =  getTypeInfoOfInstance_ndk(p); LOG_INFOS("%s", info.name()); }
+        auto* reader = (bisqueBase::Data::NtyReader*)p;
+        LOG_INFOS("reader %p ", reader);
+        auto* vtab = *(unsigned char **)reader;
+        LOG_INFOS("reader %p  %p", vtab, vtab-base);
+        _frida_hexdump(reader,0x20);
+
+
+        auto& info =  getTypeInfoOfInstance_ndk(p); LOG_INFOS("%s", info.name());
+
+        {
+
+            auto& segments  =  reader->segmentInfos;
+            fridacout << "segments " << segments.n << std::endl;
+
+            auto* p = segments._head ;
+            for(auto t = 0;t< segments.n; p=p->next, t++){ 
+                auto* item = p->item;
+                fridacout <<  t << " " << (void*)item << std::endl;
+                auto& info =  getTypeInfoOfInstance_ndk(item); LOG_INFOS("%s", info.name());
+                _frida_hexdump(item, 0x80);
+            }
+        }
+    }
+
+    return 0;
+
+}
 
 int testManager() {
 
@@ -184,7 +267,11 @@ int testCacheManager(unsigned char* base, const char* datadir ) {
 
 
 extern "C" int __attribute__((visibility("default"))) init(unsigned char* base, const char* datadir ) {
-    testManager();
+
+    // testManager();
+
+    testNtyReader(base, datadir);
+
     return 0;
 }
 

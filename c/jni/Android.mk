@@ -2,7 +2,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE:= patchgame
-LOCAL_SRC_FILES := ../patchgame.cc
+LOCAL_SRC_FILES := ../patchgame.cc ../c/misc/utils.cpp ../c/misc/mycpp.cc
 LOCAL_C_INCLUDES := 
 LOCAL_LDLIBS := 
 LOCAL_ARM_MODE := 
