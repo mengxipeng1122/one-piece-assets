@@ -1,0 +1,1 @@
+../myfrida/tsmodules/modinfos/modinfobase.ts
