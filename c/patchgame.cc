@@ -45,6 +45,7 @@ namespace bisqueBase {
         }
         struct NtyReader{
             struct SegmentInfo {
+                unsigned char _0x0[0x298];
 
             };
             unsigned char _0x0[0x4a0];
@@ -138,6 +139,18 @@ int testNtyReader(unsigned char* base, const char* datadir) {
         auto success = reader.open(fn, nullptr);
 
         LOG_INFOS("success %d", success);
+        {
+            auto& segments  =  reader.segmentInfos;
+            fridacout << "segments " << segments.n << std::endl;
+
+            auto* p = segments._head ;
+            for(auto t = 0;t< segments.n; p=p->next, t++){ 
+                auto* item = p->item;
+                fridacout <<  t << " " << (void*)item << std::endl;
+                auto& info =  getTypeInfoOfInstance_ndk(item); LOG_INFOS("%s", info.name());
+                //_frida_hexdump(item, 0x80);
+            }
+        }
     }
 
     if(1) {
@@ -164,7 +177,6 @@ int testNtyReader(unsigned char* base, const char* datadir) {
         auto& info =  getTypeInfoOfInstance_ndk(p); LOG_INFOS("%s", info.name());
 
         {
-
             auto& segments  =  reader->segmentInfos;
             fridacout << "segments " << segments.n << std::endl;
 
@@ -173,7 +185,7 @@ int testNtyReader(unsigned char* base, const char* datadir) {
                 auto* item = p->item;
                 fridacout <<  t << " " << (void*)item << std::endl;
                 auto& info =  getTypeInfoOfInstance_ndk(item); LOG_INFOS("%s", info.name());
-                _frida_hexdump(item, 0x80);
+                _frida_hexdump(item, 0x2a0);
             }
         }
     }
