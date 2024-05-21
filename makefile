@@ -5,7 +5,7 @@ PATCH_SONAME:=libpatchgame
 SO2TS_PY=./myfrida/utils/so2ts.py
 
 all:  build_c convert_so
-	./node_modules/.bin/frida-compile index.ts -o _agent.js -c 
+	./node_modules/.bin/frida-compile index.tt.ts -o _agent.js -c 
 
 build_c:
 	make -C c
@@ -18,6 +18,7 @@ clean:
 .PHONY: convert_so
 
 convert_so:
+	@if [ ! -d ./modinfos ]; then mkdir ./modinfos; fi
 	@if [ -e  ./c/libs/`adb shell getprop ro.product.cpu.abi`/${PATCH_SONAME}.so ]; then   \
 	    echo converting ./c/./libs/`adb shell getprop ro.product.cpu.abi`/${PATCH_SONAME}.so ;  \
 	    ${SO2TS_PY} --no-content -b  ./c/libs/`adb shell getprop ro.product.cpu.abi`/${PATCH_SONAME}.so  -o ./modinfos/${PATCH_SONAME}.ts;  \
